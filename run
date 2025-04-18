@@ -1,0 +1,27 @@
+#!/usr/bin/bash
+
+# use ninja if installed
+build_tool=""
+if [ -f "/usr/bin/ninja" ]; then
+    build_tool="-G Ninja"
+fi
+
+# build
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DKokkos_ENABLE_OPENMP=ON $build_tool
+cmake --build build
+
+# fun fact: intel E-cores are annoying
+# /sys/devices/cpu gets divided into cpu_cores and cpu_atom on systems with both P-cores and E-cores.
+# We assume all P-cores are hyperthreaded
+if [ -d "/sys/devices/cpu_core" ]; then
+    PHYSICAL_CORES_NON_E_IM_BUYING_AMD_NEXT_TIME=$(((`cat /sys/devices/cpu_core/cpus|grep -o "[0-9]\+$"` + 1) / 2))
+else
+    PHYSICAL_CORES_NON_E_IM_BUYING_AMD_NEXT_TIME=$(lscpu -p | egrep -v '^#' | sort -u -t, -k 2,4 | wc -l)
+fi
+
+export OMP_NUM_THREADS=$PHYSICAL_CORES_NON_E_IM_BUYING_AMD_NEXT_TIME
+export OMP_PROC_BIND=true
+export OMP_PLACES=cores
+
+# run
+./build/src/top.matrix_product 2500 2500 2500
