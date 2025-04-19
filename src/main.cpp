@@ -78,8 +78,10 @@ auto main(int argc, char* argv[]) -> int {
     t1 = high_resolution_clock::now();
     matrix_product(alpha, A, B, beta, C);
     t2 = high_resolution_clock::now();
+    auto time = (t2 - t1).count();
     Kokkos::fence();
-    fmt::print("{}\n", (t2 - t1).count());
+    // M N K cpus time time(s)
+    fmt::print("{}\t{}\t{}\t{}\t{}\t{:.4}s\n", m, n, k, Kokkos::OpenMP::impl_get_current_max_threads(), time, (double) time / 1e9);
   }
   Kokkos::finalize();
   return 0;

@@ -1,0 +1,12 @@
+#!/usr/bin/bash
+
+# Intel E-cores are ways slower than P-cores. We only want P-core count.
+# /sys/devices/cpu gets divided into cpu_cores and cpu_atom on systems with both P-cores and E-cores.
+# We assume all P-cores are hyperthreaded
+if [ -d "/sys/devices/cpu_core" ]; then
+    cpus=$(((`cat /sys/devices/cpu_core/cpus|grep -o "[0-9]\+$"` + 1) / 2))
+else
+    cpus=$(lscpu -p | egrep -v '^#' | sort -u -t, -k 2,4 | wc -l)
+fi
+
+echo $cpus
