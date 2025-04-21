@@ -40,9 +40,9 @@ auto matrix_product(double alpha, AMatrixType const& A, BMatrixType const& B, do
       for (int j = 0; j < int(B.extent(1)); ++j) {
         double acc = 0.0;
         for (int k = 0; k < int(A.extent(1)); ++k) {
-          acc += alpha * A(i, k) * B(k, j);
+          acc += A(i, k) * B(k, j);
         }
-        C(i, j) *= beta + acc;
+        C(i, j) *= beta + alpha * acc;
       }
     }
   );
@@ -59,7 +59,6 @@ auto main(int argc, char* argv[]) -> int {
 
   // Known seed for deterministic RNG
   srand48(42);
-
   Kokkos::initialize(argc, argv);
   {
     auto A = Matrix("A", m, k);

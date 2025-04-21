@@ -10,9 +10,11 @@ fi
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DKokkos_ENABLE_OPENMP=ON $build_tool
 cmake --build build
 
+# run
+python3 ./main.py
+
 export OMP_NUM_THREADS=$(./getcpus)
 export OMP_PROC_BIND=true
 export OMP_PLACES=cores
 
-# run
-./build/src/top.matrix_product 2500 2500 2500
+perf stat -e L1-dcache-loads,L1-dcache-load-misses,LLC-loads,LLC-misses ./build/src/top.matrix_product 2500 2500 2500
