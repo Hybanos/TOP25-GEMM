@@ -5,7 +5,8 @@
 #include <Kokkos_Core.hpp>
 #include <fmt/core.h>
 
-using Matrix = Kokkos::View<double**, Kokkos::LayoutRight>;
+using MatrixR = Kokkos::View<double**, Kokkos::LayoutRight>;
+using MatrixL = Kokkos::View<double**, Kokkos::LayoutLeft>;
 using std::chrono::high_resolution_clock;
 using std::chrono::time_point;
 
@@ -61,9 +62,9 @@ auto main(int argc, char* argv[]) -> int {
   srand48(42);
   Kokkos::initialize(argc, argv);
   {
-    auto A = Matrix("A", m, k);
-    auto B = Matrix("B", k, n);
-    auto C = Matrix("C", m, n);
+    auto A = MatrixR("A", m, k);
+    auto B = MatrixL("B", k, n);
+    auto C = MatrixR("C", m, n);
 
     time_point<high_resolution_clock> t1, t2;
 
