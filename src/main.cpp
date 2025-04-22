@@ -5,6 +5,8 @@
 #include <Kokkos_Core.hpp>
 #include <fmt/core.h>
 
+constexpr const int BLOCK_SIZE = 10;
+
 using MatrixR = Kokkos::View<double**, Kokkos::LayoutRight>;
 using MatrixL = Kokkos::View<double**, Kokkos::LayoutLeft>;
 using std::chrono::high_resolution_clock;
@@ -19,7 +21,7 @@ auto matrix_init(MatrixType& M) -> void {
     M.extent(0),
     KOKKOS_LAMBDA(int i) {
       for (int j = 0; j < int(M.extent(1)); ++j) {
-        M(i, j) = drand48();
+        M(i, j) = std::max(i, j) % 6 -2;
       }
     }
   );
@@ -34,16 +36,29 @@ auto matrix_product(double alpha, AMatrixType const& A, BMatrixType const& B, do
   assert(B.extent(1) == C.extent(1));
   assert(A.extent(1) == B.extent(0));
 
+  int blocks_i = A.extent(0) / BLOCK_SIZE + (A.extent(0) % BLOCK_SIZE != 0);
+  int blocks_j = B.extent(1) / BLOCK_SIZE + (B.extent(1) % BLOCK_SIZE != 0);
+
   Kokkos::parallel_for(
     "dgemm_kernel",
-    A.extent(0),
-    KOKKOS_LAMBDA(int i) {
-      for (int j = 0; j < int(B.extent(1)); ++j) {
-        double acc = 0.0;
-        for (int k = 0; k < int(A.extent(1)); ++k) {
-          acc += A(i, k) * B(k, j);
+    blocks_i,
+    KOKKOS_LAMBDA(int bi) {
+      for (int bj = 0; bj < blocks_j; ++bj) {
+        int i_lim = std::min((int) A.extent(0), bi * BLOCK_SIZE + BLOCK_SIZE);
+
+        for (int i = bi * BLOCK_SIZE; i < i_lim; ++i) {
+          int j_lim = std::min((int) B.extent(1), bj * BLOCK_SIZE + BLOCK_SIZE);
+          
+          for (int j = bj * BLOCK_SIZE; j < j_lim; ++j) {
+              
+            double acc = 0.0;
+            for (int k = 0; k < int(A.extent(1)); ++k) {
+              acc += A(i, k) * B(k, j);
+            }
+            C(i, j) *= beta + alpha * acc;
+              
+          }
         }
-        C(i, j) *= beta + alpha * acc;
       }
     }
   );
