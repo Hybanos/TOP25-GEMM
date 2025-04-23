@@ -73,7 +73,7 @@ After multiple optimizations, the code should behave the same while having a muc
 = Methodology
 == System information
 
-All code shown here is tested on 2 separate machines, each with different hardware and installations of linux. For the sake of clarity, most of the discussion will be about *System A*, with some comparison with System B when it seems necessary.
+All code shown here has been developed and tested on 2 separate machines, each with different hardware and installations of linux. For the sake of clarity, most of the discussion will be about *System A*, with some comparison with System B when it seems necessary.
 
 #align(center,
     table(
@@ -92,26 +92,26 @@ All code shown here is tested on 2 separate machines, each with different hardwa
         table.cell(colspan: 3, align: center)[*Software*],
         [*Linux Distribution*], [Linux Mint 21], [Debian 13 Testing],
         [*Kernel Version*], [6.8.0], [6.12.21],
-        [*C++ Compiler*], [gcc 11.4.0], [14.2.0],
+        [*C++ Compiler*], [gcc 11.4.0], [gcc 14.2.0],
         [*Python Version*], [3.10.12], [3.13.2],
         [*Perf Version*], [6.8.12], [6.12.21],
     )
 )
 
-<sysinfo_note> *Note:* For reasons explained in the following section, System B's E-cores are excluded from all performance measurements. CPU frequency and cache values are for P-Cores on System B.
+<sysinfo_note> *Note:* For reasons explained in the following section, System B's E-cores are excluded from all performance measurements. CPU frequency and cache values are for P-cores on System B.
 
 == Preparation
 
 In order to have consistent measurements between optimizations, a couple of bash and python scripts are set up prior to any modification to the C++ code.
 
-A bash script to get accurate number of cores on System B. Since Intel's 12th generation of processors, cores are mixed between performance and efficiency. This is problematic for our use case, as splitting an equal workload evenly between cores results in P-cores finishing the task much faster than E-cores, due to their higher clock speed and bigger caches. The easiest way to resolve this issue is simply to avoid any execution on E-cores. This script returns the count of P-cores on the machine, allowing OpenMP to pin threads to those only.
+A bash script to get accurate number of cores on System B. Since Intel's 12th generation of processors, cores are mixed between performance and efficiency. This is problematic for our use case, as splitting an equal workload between cores results in P-cores finishing the task much faster than E-cores, due to their higher clock speed and bigger caches. The easiest way to resolve this issue is simply to avoid any execution on E-cores. This script returns the count of P-cores on the machine, allowing OpenMP to pin threads to those only.
 
 == Performance measurements
 
 Performance measurement is done in 3 ways:
  - A strong scaling study 
  - A weak scaling study
- - L1 and LL cache loads and misses using the `perf` tool
+ - L1 and LL cache load and misses using the `perf` tool
 
 The main metrics are:
  - Execution time
@@ -120,7 +120,7 @@ The main metrics are:
 
 These 3 metrics give us enough information about general performace of the algorithm, its scalability across multiple cores and the efficiency of our memory accesses.
 
-Measurements is done on square matrices. For strong scaling, the size is constant ($N = 1000$). For weak scaling, matrix size is determined by a constant number of operations per core: $N = root(3, 1'000'000 * text("cores"))$. This only gives us speedup and efficiency. Last, `perf` is used on $N = 2500$ matrices. This is a big enough problem, taking about 20 seconds to solve (on the base code), while giving accurate cache loads/misses ratios.
+Measurements is done on square matrices. For strong scaling, the size is constant ($N = 1000$). For weak scaling, matrix size is determined by a constant number of operations per core: $N = root(3, 1'000'000 * text("cores"))$. This gives us speedup and efficiency. Last, `perf` is used on $N = 2500$ matrices. This is a big enough problem, taking about 20 seconds to solve (on the base code), while giving accurate cache loads/misses ratios.
 
 == Result verification
 
@@ -154,7 +154,7 @@ After each optimization, a commit is tagged with `git tag` in order to facilitat
 
 == Base program
 
-In order to base our improvements on something, we run our whole test suite on the base algorithm, without any improvement. The state of the GEMM kernel is the following:
+In order to base our improvements on something, we run our whole test suite on the base algorithm, without any modification. The state of the GEMM kernel is the following:
 
 <gemm_base> ```Cpp
 KOKKOS_LAMBDA(int i) {
@@ -168,7 +168,7 @@ KOKKOS_LAMBDA(int i) {
     });
 ```
 
-It is safe to imagine the `KOKKOS_LAMBDA` as the first loop of our GEMM algorithm; we therefor have 3 `for` loops, iterating over `i`, `j` and `k`.
+It is safe to imagine the `KOKKOS_LAMBDA` as the first loop of our GEMM algorithm; we therefore have 3 `for` loops, iterating over `i`, `j` and `k`.
 
 As is, the execution is about 17 seconds. `perf` reports the following cache information:
 
@@ -183,19 +183,19 @@ As is, the execution is about 17 seconds. `perf` reports the following cache inf
 
 As we can see, there are a huge amount of cache accesses (31 billions), with most of them missing, increasing execution time.
 
-The two other matrices don't require any transformation, as they are accessed in the same order as their elements are layed out.
-
 #figure(
     grid(
         columns: 2,
-        gutter: 5%,
+        gutter: 1%,
         image("img/base_strong_scaling.png"),
         image("img/base_weak_scaling.png"),
     ),
     caption: "Base algorithm strong and weak scaling"
 )
 
-As expected from the very parallel nature of the GEMM algorithm, the scaling from 1 to 4 cores is pretty good.
+The scaling here is quite bad, as opposed to what we would expect from the very parallel nature of the GEMM algorithm.
+
+#pagebreak()
 
 == Kokkos LayoutLeft
 
@@ -203,10 +203,12 @@ The first optimization is the transposition of the $B$ matrix in memory. In the 
 
 Transposing the matrix (using `Kokkos::LayoutLeft` instead of `Kokkos::LayoutRight`) changes the access pattern of its elements, taking full advantage of spacial locality.
 
+The two other matrices don't require any transformation, as they are accessed in the same order as their elements are layed out.
+
 #figure(
     grid(
         columns: 2,
-        gutter: 1%,
+        gutter: 10%,
         image("img/MB_LayoutRight.png"),
         image("img/MB_LayoutLeft.png"),
     ),
@@ -242,9 +244,9 @@ The default GEMM kernel loops over $i$, then $j$ and last $k$. This access patte
 )
 
 Here, we compute the first 4 elements of the $C$ matrix. However, (assuming a cache line can contain 4 values), we need to load 5 cache lines for this computation: the first 4 values of the $A$ matrix, and 4 columns of 4 values of the $B$ matrix (here, $B$ is still transposed).
-In the case where our cache can only contain 4 cache lines, our $B$ matrix would have to be fetched again in order to compute the second row of the $C$ matrix.
+In the case where our cache can only contain 4 cache lines, the entirety of the $B$ matrix would have to be fetched again in order to compute the second row of the $C$ matrix.
 
-Rearanging the kernel loops, we can change the access pattern of both $A$ and $B$ increasing the ratio of computed values to accessed cache lines. In the folowing figure, we still compute 4 elements of $C$, but we manage to save a cache line from being loaded.
+Rearranging the kernel loops, we can change the access pattern of both $A$ and $B$ increasing the ratio of computed values to accessed cache lines. In the folowing figure, we still compute 4 elements of $C$, but we manage to save a cache line from being loaded.
 
 #figure(
     image("img/ABC_stencil.png", height: 30%),
@@ -300,11 +302,40 @@ L1 accesses don't change much, but LLC loads are divided by 15. Overall, executi
 
 Note that the value of `10` for our block size is set experimentally. In fact, System B has better results with a block size of `16`, due to the bigger caches.
 
-This optimization also has the benefit of increasing the scalability of the algorithm, going up to a 3.75 times speedup with 4 cores compared to 1 (see #link(<conc>, "the conclusion") for graphs).
+This optimization also has the benefit of increasing the scalability of the algorithm, going up to a 3.75 times speedup on 4 cores (see #link(<conc>, "the conclusion") for graphs).
 
+#pagebreak()
 <conc>
 = Conclusion
 
+To conclude, let's compare all of our optimizations:
 
+#figure(
+    grid(
+        columns: 2,
+        gutter: 1%,
+        image("img/combined_strong_scaling.png"),
+        image("img/combined_weak_scaling.png"),
+    ),
+    caption: "Combined strong and weak scaling of all states of the code."
+)
+
+Overall, the code went from 17 seconds to about 4.2. This represents about a 4x speedup. The number of L1 cache loads is halved, and LLC loads are divided by more than 800. As we can see from the figure above, the scalability of the code also improves, probably due to a more efficient use of all cache levels, especially those private to each core. 
 
 == Just for fun
+
+Here's what happens when we use both E-cores and P-cores on System B:
+
+#figure(
+    grid(
+        columns: 2,
+        gutter: 1%,
+        image("img/gj_intel_strong_scaling.png"),
+        image("img/gj_intel_weak_scaling.png"),
+    ),
+    caption: "I'm buying AMD next time :/"
+)
+
+Here, cores 1-6 are P-cores, and 7-14 are E-cores.
+
+With some tweaking of the algorithm, and a better spreading of tasks on all types of cores, it would be possible to greatly increase the speedup of the algorithm. In fact, other benchmarks run on this system show that E-cores represent about 40% of all GFlops of the CPU. Unfortunalty, enabling this extra performance would take too much time, and woudln't be worth the effort as most compute-focused CPUs don't have such a heterogeneous architecture.
