@@ -86,8 +86,8 @@ All code shown here is tested on 2 separate machines, each with different hardwa
         [*Usable#link(<sysinfo_note>, "*") CPU Cores*], [4], [6],
         [*CPU Frequency*], [4.2 GHz], [5.1 GHz],
         [*Memory*], [16 GB], [32 GB],
-        [*L1d Cache*], [192 KiB], [48 KB],
-        [*L2 Cache*], [5 MiB], [2 MiB],
+        [*L1d Cache*], [48 KiB], [48 KB],
+        [*L2 Cache*], [1280 KiB], [2 MiB],
         [*L3 Cache*], [8 MiB], [24 MB],
         table.cell(colspan: 3, align: center)[*Software*],
         [*Linux Distribution*], [Linux Mint 21], [Debian 13 Testing],
@@ -206,7 +206,7 @@ Transposing the matrix (using `Kokkos::LayoutLeft` instead of `Kokkos::LayoutRig
 #figure(
     grid(
         columns: 2,
-        gutter: 5%,
+        gutter: 1%,
         image("img/MB_LayoutRight.png"),
         image("img/MB_LayoutLeft.png"),
     ),
@@ -275,7 +275,7 @@ KOKKOS_LAMBDA(int bi) {
     });
 ```
 
-Note the `i_lim` and `j_lim` variables used to compute the last range of values and not go over the matrix bounds.
+Note the `i_lim` and `j_lim` variables used to compute the last range of values without going over the matrix bounds.
 
 A few other things change in the code; We define `constexpr const int BLOCK_SIZE = 10;` to manage the size of our 2D stencil, and we set 
 
@@ -298,6 +298,13 @@ Performance counter stats for './build/src/top.matrix_product 2500 2500 2500':
 ```
 L1 accesses don't change much, but LLC loads are divided by 15. Overall, execution time decreases from 6.5 seconds to 4.2.
 
+Note that the value of `10` for our block size is set experimentally. In fact, System B has better results with a block size of `16`, due to the bigger caches.
 
-Note that the value of `10` for our block size is set experimentally. In fact,  
+This optimization also has the benefit of increasing the scalability of the algorithm, going up to a 3.75 times speedup with 4 cores compared to 1 (see #link(<conc>, "the conclusion") for graphs).
 
+<conc>
+= Conclusion
+
+
+
+== Just for fun
