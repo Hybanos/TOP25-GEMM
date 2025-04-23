@@ -13,6 +13,22 @@ using std::chrono::high_resolution_clock;
 using std::chrono::time_point;
 
 template <class MatrixType>
+double matrix_checksum(MatrixType& M) {
+  static_assert(2 == MatrixType::rank(), "View must be of rank 2");
+
+  double cs = 0.0;
+
+  for (size_t i = 0; i < M.extent(0); i++) {
+    for (size_t j = 0; j < M.extent(1); j++) {
+      cs += M(i, j);
+    }
+  }
+
+  return cs;
+}
+
+
+template <class MatrixType>
 auto matrix_init(MatrixType& M) -> void {
   static_assert(2 == MatrixType::rank(), "View must be of rank 2");
 
@@ -95,8 +111,8 @@ auto main(int argc, char* argv[]) -> int {
     t2 = high_resolution_clock::now();
     auto time = (t2 - t1).count();
     Kokkos::fence();
-    // M N K cpus time time(s)
-    fmt::print("{}\t{}\t{}\t{}\t{}\t{:.4}s\n", m, n, k, Kokkos::OpenMP::impl_get_current_max_threads(), time, (double) time / 1e9);
+    // M N K cpus time time(s) checksum
+    fmt::print("{}\t{}\t{}\t{}\t{}\t{:.4}s\t{}\n", m, n, k, Kokkos::OpenMP::impl_get_current_max_threads(), time, (double) time / 1e9, matrix_checksum(C));
   }
   Kokkos::finalize();
   return 0;

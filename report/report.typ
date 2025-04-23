@@ -209,6 +209,13 @@ Execution time is greatly reduced going from about 17 seconds to 6.5. Scaling ho
 
 == Cache Blocking
 
+
+
+#figure(
+    image("img/ABC_no_stencil.png", height: 40%),
+    caption: "Default access pattern"
+)
+
 #figure(
     image("img/ABC_stencil.png", height: 40%),
     caption: "2D cache blocking stencil"
