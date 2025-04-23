@@ -16,7 +16,7 @@ template <class MatrixType>
 double matrix_checksum(MatrixType& M) {
   static_assert(2 == MatrixType::rank(), "View must be of rank 2");
 
-  double cs =;
+  double cs = 0.0;
 
   for (size_t i = 0; i < M.extent(0); i++) {
     for (size_t j = 0; j < M.extent(1); j++) {
