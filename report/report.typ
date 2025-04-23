@@ -122,6 +122,28 @@ These 3 metrics give us enough information about general performace of the algor
 
 Measurements is done on square matrices. For strong scaling, the size is constant ($N = 1000$). For weak scaling, matrix size is determined by a constant number of operations per core: $N = root(3, 1'000'000 * text("cores"))$. This only gives us speedup and efficiency. Last, `perf` is used on $N = 2500$ matrices. This is a big enough problem, taking about 20 seconds to solve (on the base code), while giving accurate cache loads/misses ratios.
 
+== Result verification
+
+In order to garantee a correct result, the checksum of the $C$ matrix is computed. A function simply loops over the entire matrix and adds all the values in a single double. This allows a quick and easy way to verify the GEMM results, whithout having to recompute the whole matrix with a slow version of the algorithm.
+
+However, we need to remove the random initialization of the $A$ and $B$ matrices, even if a random seed is set, the out of order nature of the multi-threaded initialization changes the output every time the code is run.
+
+We change the initialization from
+
+```Cpp
+    M(i, j) = drand48();
+```
+
+to
+
+```Cpp
+    M(i, j) = std::max(i, j) % 6 - 2;
+```
+
+We mod over the indices to prevent the final value from exploding.
+
+The initial value of the checksum, for 2500-sized matrices is `18437536359`. We can simply compare every new version of the code with this value to validate the algorithm.
+
 == Project execution
 
 A final bash script is made for global workflow, compiling and running the project with both `perf` and the python strong/weak scaling studies.
@@ -143,6 +165,7 @@ KOKKOS_LAMBDA(int i) {
         }
         C(i, j) *= beta + alpha * acc;
       }
+    });
 ```
 
 It is safe to imagine the `KOKKOS_LAMBDA` as the first loop of our GEMM algorithm; we therefor have 3 `for` loops, iterating over `i`, `j` and `k`.
@@ -207,17 +230,74 @@ L1 cache loads are halved, while hits went from 22 to 87 percent. As for L3, alm
 
 Execution time is greatly reduced going from about 17 seconds to 6.5. Scaling however, stays quite similiar to the base code.
 
+#pagebreak()
+
 == Cache Blocking
 
-
+The default GEMM kernel loops over $i$, then $j$ and last $k$. This access pattern can be represented as followed:
 
 #figure(
-    image("img/ABC_no_stencil.png", height: 40%),
+    image("img/ABC_no_stencil.png", height: 30%),
     caption: "Default access pattern"
 )
 
+Here, we compute the first 4 elements of the $C$ matrix. However, (assuming a cache line can contain 4 values), we need to load 5 cache lines for this computation: the first 4 values of the $A$ matrix, and 4 columns of 4 values of the $B$ matrix (here, $B$ is still transposed).
+In the case where our cache can only contain 4 cache lines, our $B$ matrix would have to be fetched again in order to compute the second row of the $C$ matrix.
+
+Rearanging the kernel loops, we can change the access pattern of both $A$ and $B$ increasing the ratio of computed values to accessed cache lines. In the folowing figure, we still compute 4 elements of $C$, but we manage to save a cache line from being loaded.
+
 #figure(
-    image("img/ABC_stencil.png", height: 40%),
+    image("img/ABC_stencil.png", height: 30%),
     caption: "2D cache blocking stencil"
 )
+
+#pagebreak()
+
+The kernel then becomes:
+
+```Cpp
+KOKKOS_LAMBDA(int bi) {
+      for (int bj = 0; bj < blocks_j; ++bj) {
+        int i_lim = std::min((int) A.extent(0), bi * BLOCK_SIZE + BLOCK_SIZE);
+
+        for (int i = bi * BLOCK_SIZE; i < i_lim; ++i) {
+          int j_lim = std::min((int) B.extent(1), bj * BLOCK_SIZE + BLOCK_SIZE);
+          
+          for (int j = bj * BLOCK_SIZE; j < j_lim; ++j) {
+              
+            double acc = 0.0;
+            for (int k = 0; k < int(A.extent(1)); ++k) {
+              acc += A(i, k) * B(k, j);
+            }
+            C(i, j) *= beta + alpha * acc;
+              
+          }}}
+    });
+```
+
+Note the `i_lim` and `j_lim` variables used to compute the last range of values and not go over the matrix bounds.
+
+A few other things change in the code; We define `constexpr const int BLOCK_SIZE = 10;` to manage the size of our 2D stencil, and we set 
+
+```Cpp
+int blocks_i = A.extent(0) / BLOCK_SIZE + (A.extent(0) % BLOCK_SIZE != 0);
+int blocks_j = B.extent(1) / BLOCK_SIZE + (B.extent(1) % BLOCK_SIZE != 0);
+```
+to divide our problem.
+
+After these changes, `perf` reports the following metrics:
+
+```
+Performance counter stats for './build/src/top.matrix_product 2500 2500 2500':
+
+    15 773 157 582      L1-dcache-loads
+     2 193 501 867      L1-dcache-load-misses       #   13,91% of all L1-dcache accesses
+         1 298 123      LLC-loads
+           240 339      LLC-misses                  #   18,51% of all LL-cache accesses
+
+```
+L1 accesses don't change much, but LLC loads are divided by 15. Overall, execution time decreases from 6.5 seconds to 4.2.
+
+
+Note that the value of `10` for our block size is set experimentally. In fact,  
 
