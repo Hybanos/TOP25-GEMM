@@ -1,3 +1,9 @@
+You can find the final pdf report at `report/report.pdf`
+
+---
+
+-- ORIGINAL README --
+
 # Lab 3: Exercise 2 - Matrix Product
 
 In this exercise, we will use Kokkos for representing matrices and for expressing shared-memory parallelism
